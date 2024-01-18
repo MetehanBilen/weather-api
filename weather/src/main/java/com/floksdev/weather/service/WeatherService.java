@@ -2,6 +2,7 @@ package com.floksdev.weather.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.floksdev.weather.constants.Constants;
 import com.floksdev.weather.dto.WeatherDto;
 import com.floksdev.weather.dto.WeatherResponse;
 import com.floksdev.weather.model.WeatherEntity;
@@ -16,8 +17,7 @@ import java.util.Optional;
 
 @Service
 public class WeatherService {
-
-    private static final String API_URL = "PASTE HERE URL ";
+//API-KEY: 935c012cd37d9bd5890e63207b0cdf08
     private final WeatherRepository weatherRepository;
     private final RestTemplate restTemplate;
 
@@ -36,16 +36,35 @@ public class WeatherService {
 
         Optional<WeatherEntity> weatherEntityOptional
                 = weatherRepository.findFirstByRequestedCityNameOrderByUpdatedTimeDesc(city);
-
+        /* 1. yöntem
         if (!weatherEntityOptional.isPresent()) {
             return WeatherDto.convert(getWeatherFromWeatherStack(city));
         }
 
-        return WeatherDto.convert(weatherEntityOptional.get());
+        if( weatherEntityOptional.get().getUpdatedTime().isBefore(LocalDateTime.now().minusMinutes(30)))
+        {
+            return WeatherDto.convert(getWeatherFromWeatherStack(city));
+        }
+            return WeatherDto.convert(weatherEntityOptional.get());
+
+         */
+
+        //isPresentOrElse kullanılmaz çünkü void methodlar.
+
+        //2. yöntem
+        return weatherEntityOptional.map(weather -> {
+            if( weather.getUpdatedTime().isBefore(LocalDateTime.now().minusMinutes(30)))
+            {
+                return WeatherDto.convert(getWeatherFromWeatherStack(city));
+            }
+            return WeatherDto.convert(weather);
+        }).orElseGet(()->  WeatherDto.convert(getWeatherFromWeatherStack(city)));
+
+
     }
 
     private WeatherEntity getWeatherFromWeatherStack(String city) {
-        ResponseEntity<String> responseEntity = restTemplate.getForEntity(API_URL+city, String.class);
+        ResponseEntity<String> responseEntity = restTemplate.getForEntity(getWeatherStackUrl(city), String.class);
 
         try {
             WeatherResponse weatherResponse = objectMapper.readValue(responseEntity.getBody(),WeatherResponse.class);
@@ -55,6 +74,11 @@ public class WeatherService {
             throw new RuntimeException(e);
         }
 
+    }
+
+    private String getWeatherStackUrl(String city)
+    {
+        return Constants.API_URL + Constants.ACCESS_KEY_PARAM+ Constants.API_KEY + Constants.QUERY_KEY_PARAM+ city;
     }
 
     private  WeatherEntity saveWeatherEntity(String city, WeatherResponse weatherResponse)
